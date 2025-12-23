@@ -19,7 +19,7 @@ public class CourseFileDAO implements CourseDAO{
 
     private static final Logger LOG = Logger.getLogger(CourseFileDAO.class.getName());
 
-    private Map<Integer,Course> courseCache; //Local cache
+    private  Map<Integer,Course> courseCache; //Local cache
 
     private ObjectMapper objectMapper;
     private String filename;
@@ -32,6 +32,8 @@ public class CourseFileDAO implements CourseDAO{
         load();
     }
 
+    // <-----------------------  SUPPORT FUNCTIONS --------------------------> //
+
     private synchronized static int nextId(){
         int id = nextId;
         ++nextId;
@@ -40,18 +42,20 @@ public class CourseFileDAO implements CourseDAO{
     }
 
     /**
-     * Saves Courses from CourseCache into the Data File
+     * Saves {@linkplain Course course} from the courseCache into a file as an 
+     * array of JSON objects
      * @return True if successful, False if not
      * @throws IOException when file couldn't be accesed 
      */
-    private boolean Save() throws IOException{
+    private boolean save() throws IOException{
         Course[] courseArray = getCourseArray();
         objectMapper.writeValue(new File(filename),courseArray);
         return true;
     }
 
     /**
-     * Loads Course Data from the Data file
+     * Loads Course Data from the Data file into a course array then assigns an
+     * Id to each {@linkplain Course course} then puts them into a treeMap
      * @return True if successful, False if not
      * @throws IOException when file couldn't be accesed 
      */
@@ -73,11 +77,23 @@ public class CourseFileDAO implements CourseDAO{
             return false;
         }
     }
-    
     /**
-     * gets all courses that contain text from containsText
-     * @param containsText text used to filter results, may be null
-     * @return array of {@linkplain Course courses} 
+     * Generates an array of {@linkplain Course course} from the CourseCache
+     * @return The array of {@link Course course}, may be empty
+     */
+    private Course[] getCourseArray(){
+        return getCourseArray(null);
+    }
+
+    /**
+     * Generates an array of {@linkplain Course course} from the CourseCache 
+     * for any {@linkplain Course course} that contains the text specified by
+     * containsText
+     * <br>
+     * If containsText is Null, the array will consist of all {@linkplain Course courses}
+     * in the CourseCache
+     * @param containsText Specifided text used to filter the array, may be null
+     * @return array of {@link Course courses} 
      */
     private Course[] getCourseArray(String containsText){
         ArrayList<Course> courseArrayList = new ArrayList<>();
@@ -91,37 +107,91 @@ public class CourseFileDAO implements CourseDAO{
         return courseArrayList.toArray(courseArray);
     }
 
-    private Course[] getCourseArray(){
+    // <-----------------------  ACCESS FUNCTIONS --------------------------> //
+
+    /**
+     * {@inheritDoc }
+     */
+    @Override
+    public Course createCourse(Course course) throws IOException {
+        synchronized(courseCache){
+            if (findCourse(course.getName()).length == 0){
+                Course newCourse = new Course(
+                    nextId(),
+                    course.getName(),
+                    course.getInstructor(),
+                    course.getCredit()
+                );
+                courseCache.put(newCourse.getId(),newCourse);
+                save();
+                return newCourse;
+            }
+            return null;
+        }
+    }
+
+    /**
+     * {@inheritDoc }
+     */
+    @Override
+    public Course[] getAllCourses() throws IOException{
         return getCourseArray(null);
     }
 
+    /**
+     * {@inheritDoc }
+     */
     @Override
-    public Course createCourse(Course course) {
-        throw new UnsupportedOperationException("Not supported yet.");
+    public Course getCourse(int id) throws IOException{
+        synchronized(courseCache){
+            return courseCache.get(id);
+        }
     }
 
+    /**
+     * {@inheritDoc }
+     */
     @Override
-    public Course[] getAllCourses() {
-        throw new UnsupportedOperationException("Not supported yet.");
+    public Course[] findCourse(String containsText) throws IOException{
+        synchronized(courseCache){
+            return getCourseArray(containsText);
+        }
     }
 
+    /**
+     * {@inheritDoc }
+     */
     @Override
-    public Course getCourse(int id) {
-        throw new UnsupportedOperationException("Not supported yet.");
+    public Course updateCourse(Course course) throws IOException{
+        synchronized(courseCache){
+            if(!courseCache.containsKey(course.getId())){
+                return null;
+            }
+
+            Course updated = new Course(
+                course.getId(),
+                course.getName(), 
+                course.getInstructor(), 
+                course.getCredit()
+            );
+            courseCache.put(course.getId(), updated);
+            save();
+            return updated;
+        }
     }
 
+    /**
+     * {@inheritDoc }
+     */
     @Override
-    public Course findCourse(String ContainText) {
-        throw new UnsupportedOperationException("Not supported yet.");
-    }
-
-    @Override
-    public Course updateCourse(Course course) {
-        throw new UnsupportedOperationException("Not supported yet.");
-    }
-
-    @Override
-    public Boolean deleteCourse(int id) {
-        throw new UnsupportedOperationException("Not supported yet.");
+    public Boolean deleteCourse(int id) throws IOException{
+        synchronized(courseCache){
+            Course removed = courseCache.remove(id);
+            if (removed == null){
+                return false;
+            }
+            save();
+            return true;
+        }
     }
 }
